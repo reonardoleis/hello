@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/reonardoleis/hello/cmd/messages"
+	"github.com/reonardoleis/hello/internal/messages"
 )
 
 var (
