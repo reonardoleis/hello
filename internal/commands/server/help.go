@@ -3,15 +3,16 @@ package commands
 import (
 	"net"
 
+	"github.com/reonardoleis/hello/internal/commands/command_names"
 	"github.com/reonardoleis/hello/internal/manager"
 	"github.com/reonardoleis/hello/internal/messages"
 )
 
 type HelpCommand struct{}
 
-func (c HelpCommand) Execute(conn *net.Conn, manager *manager.Manager, args []string) error {
+func (c HelpCommand) Execute(conn *net.Conn, manager *manager.ServerManager, args []string) error {
 	commandName := args[0]
-	for _, c := range COMMANDS {
+	for _, c := range command_names.COMMANDS {
 		if c == commandName {
 			command := GetCommand(commandName)
 			message := messages.NewSystem(command.Description())
@@ -34,5 +35,5 @@ func (c HelpCommand) Description() string {
 }
 
 func (c HelpCommand) Name() string {
-	return COMMAND_HELP
+	return command_names.COMMAND_HELP
 }

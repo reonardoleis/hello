@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/reonardoleis/hello/internal/commands"
+	commands "github.com/reonardoleis/hello/internal/commands/server"
 	"github.com/reonardoleis/hello/internal/manager"
 	"github.com/reonardoleis/hello/internal/messages"
 	"github.com/reonardoleis/hello/internal/user"
@@ -17,8 +17,8 @@ import (
 )
 
 var (
-	m                              = &sync.Mutex{}
-	serverManager *manager.Manager = manager.New()
+	m                                    = &sync.Mutex{}
+	serverManager *manager.ServerManager = manager.New()
 )
 
 func isDebug() bool {
@@ -71,6 +71,11 @@ func handle(conn *net.Conn) {
 		buf := make([]byte, 1024)
 		n, err := (*conn).Read(buf)
 		if err != nil {
+			room := serverManager.FindUserRoom(conn)
+			if room != nil {
+				room.RemoveUser(serverManager.Users[conn])
+			}
+
 			log.Println("error reading:", err)
 			return
 		}
@@ -85,6 +90,10 @@ func handle(conn *net.Conn) {
 		fmt.Printf("%+v\n", message)
 		if message.IsCommand() {
 			commandArgs := strings.Split(message.Data, " ")
+			if len(commandArgs) == 1 && commandArgs[0] == "" {
+				commandArgs = []string{}
+			}
+
 			command := commands.GetCommand(message.Command)
 			if command == nil || !command.Validate(commandArgs) {
 				message := messages.NewSystem("Invalid command")

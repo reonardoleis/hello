@@ -7,7 +7,7 @@ import (
 )
 
 type Command interface {
-	Execute(conn *net.Conn, manager *manager.Manager, args []string) error
+	Execute(conn *net.Conn, manager *manager.ServerManager, args []string) error
 	Validate(args []string) bool
 	Description() string
 	Name() string

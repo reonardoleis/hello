@@ -7,21 +7,21 @@ import (
 	"github.com/reonardoleis/hello/internal/user"
 )
 
-type Manager struct {
+type ServerManager struct {
 	Connections []*net.Conn
 	Users       map[*net.Conn]*user.User
 	Rooms       []*room.Room
 }
 
-func New() *Manager {
-	return &Manager{
+func New() *ServerManager {
+	return &ServerManager{
 		Connections: []*net.Conn{},
 		Users:       map[*net.Conn]*user.User{},
 		Rooms:       []*room.Room{},
 	}
 }
 
-func (m Manager) IsOnRoom(conn *net.Conn) bool {
+func (m ServerManager) IsOnRoom(conn *net.Conn) bool {
 	for _, room := range m.Rooms {
 		for _, user := range room.Users {
 			if user.Conn == conn {
@@ -33,7 +33,7 @@ func (m Manager) IsOnRoom(conn *net.Conn) bool {
 	return false
 }
 
-func (m Manager) FindUserRoom(conn *net.Conn) *room.Room {
+func (m ServerManager) FindUserRoom(conn *net.Conn) *room.Room {
 	for _, room := range m.Rooms {
 		for _, user := range room.Users {
 			if user.Conn == conn {
@@ -43,4 +43,14 @@ func (m Manager) FindUserRoom(conn *net.Conn) *room.Room {
 	}
 
 	return nil
+}
+
+func (m ServerManager) RemoveUser(conn *net.Conn) {
+	delete(m.Users, conn)
+
+	for i := range m.Connections {
+		if m.Connections[i] == conn {
+			m.Connections = append(m.Connections[:i], m.Connections[i+1:]...)
+		}
+	}
 }

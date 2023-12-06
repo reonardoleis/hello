@@ -5,6 +5,8 @@ import (
 	"net"
 	"os"
 
+	commands "github.com/reonardoleis/hello/internal/commands/client"
+	"github.com/reonardoleis/hello/internal/manager"
 	"github.com/reonardoleis/hello/internal/messages"
 	"github.com/reonardoleis/hello/internal/ui"
 	"github.com/reonardoleis/hello/internal/utils"
@@ -41,13 +43,13 @@ func main() {
 	log.Println("Connected!")
 
 	log.Println("Initializing UI...")
-
-	go handle(conn)
+	cm := &manager.ClientManager{}
+	go handle(conn, cm)
 	ui.Conn = &conn
-	ui.Show()
+	ui.Init(cm)
 }
 
-func handle(conn net.Conn) {
+func handle(conn net.Conn, cm *manager.ClientManager) {
 	for {
 		buf := make([]byte, 1024)
 		_, err := conn.Read(buf)
@@ -57,6 +59,22 @@ func handle(conn net.Conn) {
 
 		buf = utils.SanitizeBuffer(buf)
 		message := messages.FromBytes(buf)
+
+		if message.IsCommand() {
+			args := message.CommandArgs()
+			command := commands.GetCommand(message.Command)
+			if command == nil {
+				ui.AddMessage("Error executing command!", false)
+				continue
+			}
+
+			err := command.Execute(&conn, cm, args)
+			if err != nil {
+				ui.AddMessage(err.Error(), false)
+			}
+
+			continue
+		}
 
 		ui.AddMessage(message.String(), false)
 	}

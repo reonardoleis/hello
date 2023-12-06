@@ -105,3 +105,7 @@ func (m Message) IsCommand() bool {
 func (m Message) IsResult() bool {
 	return m.Type == MessageResult
 }
+
+func (m Message) CommandArgs() []string {
+	return strings.Split(m.Data, " ")
+}

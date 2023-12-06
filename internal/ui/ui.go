@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/reonardoleis/hello/internal/manager"
 	"github.com/reonardoleis/hello/internal/messages"
 	"github.com/rivo/tview"
 )
@@ -15,11 +16,10 @@ var (
 
 	messageInput = tview.NewInputField().
 			SetLabel("Message: ").
-			SetFieldWidth(20).
+			SetFieldWidth(40).
 			SetFieldBackgroundColor(tview.Styles.PrimitiveBackgroundColor).
-			SetFieldTextColor(tview.Styles.GraphicsColor).
 			SetLabelColor(tview.Styles.SecondaryTextColor).
-			SetPlaceholder("Type your message here...")
+			SetPlaceholder("")
 
 	chat = tview.NewTextView().
 		SetDynamicColors(true).
@@ -31,8 +31,27 @@ var (
 			app.Draw()
 		})
 
+	userList = tview.NewTextView().
+			SetRegions(true).
+			SetWrap(true).
+			SetWordWrap(true).
+			SetScrollable(false). // TODO: Fix scrollable
+			SetChangedFunc(func() {
+			app.Draw()
+		})
+
+	info = tview.NewTextView().
+		SetRegions(true).
+		SetWrap(true).
+		SetWordWrap(true).
+		SetScrollable(false). // TODO: Fix scrollable
+		SetChangedFunc(func() {
+			app.Draw()
+		})
+
 	grid = tview.NewGrid().
-		SetRows(20, 1).
+		SetRows(20, 1, 1).
+		SetColumns(100, 5).
 		SetBorders(true).
 		AddItem(
 			chat,
@@ -45,10 +64,26 @@ var (
 			1, 0,
 			1, 1,
 			0, 0,
-			true)
+			true).
+		AddItem(
+			userList,
+			0, 1,
+			2, 2,
+			0, 0,
+			false).
+		AddItem(
+			info,
+			2, 0,
+			1, 3,
+			0, 0,
+			false)
 )
 
-func Show() {
+func Init(manager *manager.ClientManager) {
+	manager.Chat = chat
+	manager.MessageInput = messageInput
+	manager.Info = info
+	manager.UserList = userList
 	messageInput.SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyEnter {
 			content := messageInput.GetText()
