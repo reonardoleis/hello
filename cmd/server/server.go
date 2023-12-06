@@ -2,20 +2,23 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"strings"
 	"sync"
 
+	"github.com/reonardoleis/hello/internal/commands"
+	"github.com/reonardoleis/hello/internal/manager"
 	"github.com/reonardoleis/hello/internal/messages"
+	"github.com/reonardoleis/hello/internal/user"
+	"github.com/reonardoleis/hello/internal/utils"
 )
 
 var (
-	m         = &sync.Mutex{}
-	conns     []net.Conn
-	nicknames map[net.Conn]string = make(map[net.Conn]string)
+	m                              = &sync.Mutex{}
+	serverManager *manager.Manager = manager.New()
 )
 
 func isDebug() bool {
@@ -44,8 +47,12 @@ func main() {
 			panic(err)
 		}
 
-		conns = append(conns, conn)
-		go handle(conn)
+		serverManager.Connections = append(serverManager.Connections, &conn)
+		serverManager.Users[&conn] = &user.User{
+			Nickname: fmt.Sprintf("Guest_%d", len(serverManager.Connections)),
+			Conn:     &conn,
+		}
+		go handle(&conn)
 	}
 }
 
@@ -53,19 +60,18 @@ func sender() {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		text, _ := reader.ReadString('\n')
-		for _, conn := range conns {
-
-			fmt.Fprintf(conn, text+"\n")
+		for _, conn := range serverManager.Connections {
+			fmt.Fprintf(*conn, text+"\n")
 		}
 	}
 }
 
-func handle(conn net.Conn) {
+func handle(conn *net.Conn) {
 	for {
 		buf := make([]byte, 1024)
-		n, err := conn.Read(buf)
+		n, err := (*conn).Read(buf)
 		if err != nil {
-			fmt.Println("error reading:", err)
+			log.Println("error reading:", err)
 			return
 		}
 
@@ -73,59 +79,49 @@ func handle(conn net.Conn) {
 			continue
 		}
 
-		buf = bytes.Map(func(r rune) rune {
-			if r == '\x00' {
-				return -1
-			}
-
-			return r
-		}, buf)
-
-		fmt.Println(string(buf))
+		buf = utils.SanitizeBuffer(buf)
 
 		message := messages.FromBytes(buf)
-
-		if message.Type == messages.MessageNickname {
-			message.Data = strings.ReplaceAll(message.Data, "\n", "")
-			message.Data = strings.ReplaceAll(message.Data, "\r", "")
-
-			exists := false
-			for _, nickname := range nicknames {
-				if strings.EqualFold(nickname, message.Data) {
-					exists = true
-				}
-			}
-
-			if exists || strings.ToUpper(message.Data) == "SYSTEM" {
-				fmt.Fprintf(conn, "%s", messages.NewSystem("Username already taken.").Bytes())
+		fmt.Printf("%+v\n", message)
+		if message.IsCommand() {
+			commandArgs := strings.Split(message.Data, " ")
+			command := commands.GetCommand(message.Command)
+			if command == nil || !command.Validate(commandArgs) {
+				message := messages.NewSystem("Invalid command")
+				message.Send(conn)
 				continue
 			}
 
-			nicknames[conn] = message.Data
+			err := command.Execute(conn, serverManager, commandArgs)
+			if err != nil {
+				message := messages.NewSystem(err.Error())
+				message.Send(conn)
+				continue
+			}
+
 			continue
 		}
 
-		m.Lock()
-		nickname := fmt.Sprintf("Guest_%d", len(conns))
-		m.Unlock()
-		if nicknames[conn] != "" {
-			nickname = nicknames[conn]
-		} else {
-			nicknames[conn] = nickname
+		if !serverManager.IsOnRoom(conn) {
+			message := messages.NewSystem("You are not on a room")
+			message.Send(conn)
+			continue
 		}
 
-		message.SetNickname(nickname)
+		nickname := serverManager.Users[conn].Nickname
 
+		message.SetNickname(nickname)
 		broadcast(conn, message.Bytes())
 	}
 }
 
-func broadcast(sender net.Conn, message string) {
-	for _, conn := range conns {
-		if conn == sender {
+func broadcast(sender *net.Conn, message string) {
+	room := serverManager.FindUserRoom(sender)
+	for _, user := range room.Users {
+		if user.Conn == sender {
 			continue
 		}
 
-		fmt.Fprintf(conn, "%s", message)
+		fmt.Fprintf(*user.Conn, "%s", message)
 	}
 }

@@ -1,19 +1,18 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
-	"fmt"
 	"log"
 	"net"
 	"os"
-	"strings"
 
 	"github.com/reonardoleis/hello/internal/messages"
+	"github.com/reonardoleis/hello/internal/ui"
+	"github.com/reonardoleis/hello/internal/utils"
 )
 
 var (
 	nickname = ""
+	conn     net.Conn
 )
 
 func isDebug() bool {
@@ -30,8 +29,9 @@ func getHost() string {
 }
 
 func main() {
+	var err error
 	log.Println("Connecting...")
-	conn, err := net.Dial("tcp", getHost())
+	conn, err = net.Dial("tcp", getHost())
 	if err != nil {
 		panic(err)
 	}
@@ -40,30 +40,11 @@ func main() {
 
 	log.Println("Connected!")
 
+	log.Println("Initializing UI...")
+
 	go handle(conn)
-
-	for {
-		reader := bufio.NewReader(os.Stdin)
-
-		text, _ := reader.ReadString('\n')
-
-		message := messages.Message{
-			Type: messages.MessageContent,
-			Len:  len(text),
-			Data: text,
-		}
-
-		if strings.Contains(text, "/nickname") {
-			nickname = strings.Split(text, "/nickname ")[1]
-			message = messages.Message{
-				Type: messages.MessageNickname,
-				Len:  len(nickname),
-				Data: nickname,
-			}
-		}
-
-		fmt.Fprintf(conn, "%s", message.Bytes())
-	}
+	ui.Conn = &conn
+	ui.Show()
 }
 
 func handle(conn net.Conn) {
@@ -74,15 +55,9 @@ func handle(conn net.Conn) {
 			panic(err)
 		}
 
-		buf = bytes.Map(func(r rune) rune {
-			if r == '\x00' {
-				return -1
-			}
-
-			return r
-		}, buf)
-
+		buf = utils.SanitizeBuffer(buf)
 		message := messages.FromBytes(buf)
-		message.Show()
+
+		ui.AddMessage(message.String(), false)
 	}
 }
