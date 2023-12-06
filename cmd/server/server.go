@@ -9,6 +9,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/faiface/beep"
+	"github.com/hajimehoshi/oto"
+	"github.com/pkg/errors"
 	commands "github.com/reonardoleis/hello/internal/commands/server"
 	"github.com/reonardoleis/hello/internal/manager"
 	"github.com/reonardoleis/hello/internal/messages"
@@ -34,6 +37,7 @@ func getPort() string {
 }
 
 func main() {
+	initPlayer(beep.SampleRate(48000), 48000*4)
 	listener, err := net.Listen("tcp", getPort())
 	if err != nil {
 		panic(err)
@@ -66,9 +70,111 @@ func sender() {
 	}
 }
 
+var (
+	mu      sync.Mutex
+	mixer   beep.Mixer
+	samples [][2]float64
+	buf     []byte
+	context *oto.Context
+	player  *oto.Player
+	done    chan struct{}
+)
+
+func Lock() {
+	mu.Lock()
+}
+
+func Unlock() {
+	mu.Unlock()
+}
+
+func Clear() {
+	mu.Lock()
+	mixer.Clear()
+	mu.Unlock()
+}
+
+func update() {
+	mu.Lock()
+	mixer.Stream(samples)
+	mu.Unlock()
+
+	for i := range samples {
+		for c := range samples[i] {
+			val := samples[i][c]
+			if val < -1 {
+				val = -1
+			}
+			if val > +1 {
+				val = +1
+			}
+			valInt16 := int16(val * (1<<15 - 1))
+			low := byte(valInt16)
+			high := byte(valInt16 >> 8)
+			buf[i*4+c*2+0] = low
+			buf[i*4+c*2+1] = high
+		}
+	}
+
+	player.Write(buf)
+}
+
+func Play(s ...beep.Streamer) {
+	mu.Lock()
+	mixer.Add(s...)
+	mu.Unlock()
+}
+
+func Close() {
+	if player != nil {
+		if done != nil {
+			done <- struct{}{}
+			done = nil
+		}
+		player.Close()
+		context.Close()
+		player = nil
+	}
+}
+
+func initPlayer(sampleRate beep.SampleRate, bufferSize int) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	Close()
+
+	mixer = beep.Mixer{}
+
+	numBytes := bufferSize * 4
+	samples = make([][2]float64, bufferSize)
+	buf = make([]byte, numBytes)
+
+	var err error
+	context, err = oto.NewContext(int(sampleRate), 2, 2, numBytes)
+	if err != nil {
+		return errors.Wrap(err, "failed to initialize speaker")
+	}
+	player = context.NewPlayer()
+
+	done = make(chan struct{})
+
+	go func() {
+		for {
+			select {
+			default:
+				update()
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	return nil
+}
+
 func handle(conn *net.Conn) {
 	for {
-		buf := make([]byte, 1024)
+		buf := make([]byte, 453696)
 		n, err := (*conn).Read(buf)
 		if err != nil {
 			room := serverManager.FindUserRoom(conn)
@@ -85,9 +191,17 @@ func handle(conn *net.Conn) {
 		}
 
 		buf = utils.SanitizeBuffer(buf)
-
 		message := messages.FromBytes(buf)
-		fmt.Printf("%+v\n", message)
+
+		if message.IsAudio() {
+			_, err := message.GetAudioBuffer()
+			if err != nil {
+				log.Println("error getting audio buffer:", err)
+			}
+
+			continue
+		}
+
 		if message.IsCommand() {
 			commandArgs := strings.Split(message.Data, " ")
 			if len(commandArgs) == 1 && commandArgs[0] == "" {

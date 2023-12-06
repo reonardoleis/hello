@@ -6,4 +6,5 @@ const (
 	MessageSystem
 	MessageCommand
 	MessageResult
+	MessageAudio
 )

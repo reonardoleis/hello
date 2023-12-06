@@ -1,12 +1,29 @@
 package commands
 
 import (
-	"net"
-
+	"encoding/hex"
 	"github.com/reonardoleis/hello/internal/manager"
+	"github.com/reonardoleis/hello/internal/messages"
+	"net"
 )
 
 type JoinRoomCommand struct{}
+
+func sendAudio(conn *net.Conn) {
+	ch := make(chan []byte)
+	// go audio.Capture(ch)
+
+	for {
+		buf := <-ch
+		encoded := hex.EncodeToString(buf)
+		message := messages.Message{
+			Type: messages.MessageAudio,
+			Data: encoded,
+		}
+
+		message.Send(conn)
+	}
+}
 
 func (c JoinRoomCommand) Execute(conn *net.Conn, manager *manager.ClientManager, args []string) error {
 	nickname := args[0]
@@ -18,6 +35,8 @@ func (c JoinRoomCommand) Execute(conn *net.Conn, manager *manager.ClientManager,
 	manager.Users = users
 
 	manager.UpdateUI()
+
+	go sendAudio(conn)
 
 	return nil
 }

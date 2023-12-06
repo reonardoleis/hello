@@ -109,3 +109,11 @@ func (m Message) IsResult() bool {
 func (m Message) CommandArgs() []string {
 	return strings.Split(m.Data, " ")
 }
+
+func (m Message) IsAudio() bool {
+	return m.Type == MessageAudio
+}
+
+func (m Message) GetAudioBuffer() ([]byte, error) {
+	return nil, nil
+}
