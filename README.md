@@ -10,7 +10,7 @@ Hello is a simple chat service written in Go that allows users to communicate ov
 - **Chat Rooms:** Users can create and join rooms to chat with others in a more organized manner.
 - **Password Protection:** Enhance the security of chat rooms by implementing password protection.
 - **Member List:** Display a list of members within a chat room.
-- 
+
 ## Future Roadmap
 
 hello is actively under development, and we have exciting features planned for the future releases:
