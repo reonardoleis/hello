@@ -21,7 +21,7 @@ hello is actively under development, and we have exciting features planned for t
 
 To run the Hello service locally, follow these steps:
 
-1. Clone the repository: `git clone https://github.com/your-username/hello.git`
+1. Clone the repository: `git clone https://github.com/reonardoleis/hello.git`
 2. Navigate to the project directory: `cd hello`
 3. Build the executable: `make build-server && make build-client`
 4. Run the server: `./bin/hello-server <PORT>`
